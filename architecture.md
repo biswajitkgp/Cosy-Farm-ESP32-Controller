@@ -1,75 +1,56 @@
-# ESP32 Cosy Farm Controller - Architecture
+# ESP32 Cosy Farm Controller - Architecture (Updated Commit 2f34059)
 
 ## Overview
-ESP32-S3 based WiFi controller for Cosy Farm with RGB LED status, NTP sync, OTA updates from GitHub Raw (firmware.bin/version.txt). PlatformIO Arduino framework.
+ESP32-S3 WiFi controller for Cosy Farm. Features: RGB LED status, NTP geo/tz sync, OTA from GitHub, Serial commands, RTC cache/drift correction, Voltage safety mode. PlatformIO Arduino. Latest: Version 1.0.0 init, 11s boot delay.
 
 ## Hardware
-- **Board**: ESP32-S3-DevKitC-1 (8MB Flash)
-- **RGB LED**: GPIO2 (R PWM ch0), GPIO1 (G ch1), GPIO3 (B ch2) + GND
-- **Power**: USB/3.3V
+- Board: ESP32-S3-DevKitC-1 (8MB Flash)
+- RGB LED: GPIO2(R ch0),1(G ch1),3(B ch2) PWM 1kHz 8bit
+- Voltage sense: PIN_VOLTAGE_SENSE (define.h, ADC 12bit 11dB)
 
 ## Software Stack
+PlatformIO Arduino-ESP32 3.x + FreeRTOS + ArduinoJson 7 + HTTPClient/Preferences/Update/WiFi
 ```
-PlatformIO + Arduino-ESP32 core 3.x
-├── WiFi (stored creds Preferences)
-├── NTP (ip-api.com geo/tz)
-├── OTA (GitHub Raw)
-├── FreeRTOS tasks
-├── ArduinoJson 7
-└── Native ledc PWM
+main (globals, setup tasks, idle loop)
+├── WiFi_Manager (connect/monitor task)
+├── NTP_Manager (geo/tz/ntp)
+├── OTA_Manager (check/update task)
+├── LED_Manager (PWM blink patterns)
+├── Command_Manager (serial cmds)
+├── RTC_Manager (cache/sync/drift)
+├── Safety_Manager (voltage safe mode)
+└── define.h (states/pins/defines)
 ```
 
-## Components
-
-### 1. main.cpp
-- Globals def (prefs, currentState, wifiConnected, ntpRetryCount)
-- setup(): Serial, ledInit(), wifiInit(), xTaskCreate(wifiMonitorTask)
-- loop(): Idle
-
-### 2. define.h
-- **States**: NTP_SYNC(0), AP(1), CONNECTING(2), CONNECTED(3), ERROR(4), OTA_CHECK(5), OTA_UPDATE(6)
-- **Pins/PWM**: R2/G1/B3, 1kHz 8bit
-- **OTA**: VERSION_URL, FIRMWARE_URL (GitHub raw), INTERVAL 24h
-- Externals: globals
-
-### 3. WiFi_Manager.cpp/h
-- wifiInit(): Load/save SSID/pass prefs ("wifi-creds"), connect/reconnect
-- wifiMonitorTask(): 5s WiFi check, ledBlink(), ntpAttempt() on connect, otaCheckAfterNtp()
-
-### 4. NTP_Manager.cpp/h
-- ntpUpdateOnConnect(): HTTP ip-api.com/json → geo/tz/offset, configTime, cache prefs "geo-cache"
-- g_epochTime/g_lat/g_lon/g_timezone/g_localTime
-
-### 5. LED_Manager.cpp/h
-- ledInit(): PWM setup
-- ledSetColor(r,g,b)
-- ledBlink(state, now): Switch patterns (bright/dim blink)
-
-### 6. OTA_Manager.cpp/h
-- Globals: localOtaVersion, lastOtaCheck
-- otaCheckAfterNtp(): Post-NTP, load "ota" prefs, HTTP version.txt stream read/compare (daily), task if new
-- otaUpdateTask(): HTTP firmware.bin chunk 512B to Update.end(true) → restart
+## Components (15 files)
+1. **main.cpp**: prefs/currentState/ntpRetryCount/wifiConnected def. setup(): Serial(115200), delay(11s), ledInit/wifiInit, wifiMonitorTask. loop(): 1s idle.
+2. **define.h**: States (NTP_SYNC0 AP1 CONNECTING2 CONNECTED3 ERROR4 OTA_CHECK5 UPDATE6), pins PWM, OTA URLs/interval24h, FIRMWARE_VERSION"1.0.0", VOLTAGE defines. Globals extern.
+3. **WiFi_Manager**: Load/save SSID/pass prefs. wifiInit/connect/reconnect. wifiMonitorTask(5s): check/ledBlink/ntpAttempt/otaCheckAfterNtp.
+4. **NTP_Manager**: ntpUpdateOnConnect(): ip-api geo/tz/offset → configTime/prefs geo-cache. Globals g_lat/lon/timezone/epoch/local/utc.
+5. **LED_Manager**: ledInit(PWM attach), ledSetColor(r g b), ledBlink(state,millis) patterns (magenta NTP, yellow OTA etc.). Respects safe mode (off).
+6. **OTA_Manager**: localOtaVersion/lastCheck. otaCheckAfterNtp(): prefs load (init 1.0.0 if0), daily remote version.txt compare → otaUpdateTask(HTTP firmware.bin chunk→Update.end→restart).
+7. **Command_Manager**: commandUpdate(): Serial cmds | W/w: prefs wifi clear restart | C/c: new SSID/pass input save restart | S/s: default define.h save restart | F/f: nvs_flash_erase init restart.
+8. **RTC_Manager**: rtcInit(ntpInit), rtcSyncWithNTP(set lastSyncDay/timestamp), rtcUpdate(daychange→ntp resync drift), rtcGetLocalTimeStr("%Y-%m-%d %H:%M:%S (Last Sync)").
+9. **Safety_Manager**: safetyInit(ADC pin/11db/12bit), getSystemVoltage(10sample avg * divider), isVoltageSafe(>=MIN_SAFE_MV), safetyUpdate(): Critical<MV→safe(on WiFi/LEDoff log), Recovery>→restart WiFi.
 
 ## Flow
+Boot(11s delay) → WiFi connect(blue blink) → NTP sync(magenta) → OTA check(cyan) → Connected(green). Daily OTA yellow download restart. Serial cmds anytime. Voltage safe(red off). RTC drift daily fix.
+
+| Serial Cmd | Action |
+|------------|--------|
+| W/w | Wipe WiFi prefs, restart defaults |
+| C/c | Input new SSID/pass, save restart |
+| S/s | Sync NVS to define.h defaults |
+| F/f | Factory NVS erase restart |
+
+## OTA
+URLs define.h GitHub raw OTA Files/version.txt/firmware.bin. pio run → copy .pio/build/esp32-s3-devkitc-1/firmware.bin → git push → auto pull daily.
+
+## Build/Flash
 ```
-Boot → WiFi connect (blue blink) → NTP sync (magenta fast) → OTA check (cyan slow) → Connected (green)
-Error (red fast)
-Daily OTA if new version.txt → yellow fast download → restart
+pio run [--target upload --upload-port COMX]
+monitor: 115200 11dB safe
 ```
+Default partition OTA OK (27% flash used).
 
-## OTA Setup
-1. Update define.h URLs to repo/raw/version.txt & firmware.bin
-2. `pio run` → copy .pio/build/esp32-s3-devkitc-1/firmware.bin
-3. Push bin/txt to GitHub main → device checks/pulls
-
-## Build/Upload
-```
-pio run --target upload --upload-port COMX
-monitor: 115200
-```
-
-## Partition/Flash
-Default 8MB OK for OTA. Flash: min-size for large bin if needed.
-
-Repo: https://github.com/Cosy-Farms/Cosy-Farm-ESP32-Controller
-
+Repo: https://github.com/Cosy-Farms/Cosy-Farm-ESP32-Controller main:2f34059
