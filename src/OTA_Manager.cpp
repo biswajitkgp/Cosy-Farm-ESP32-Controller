@@ -29,6 +29,13 @@ void otaCheckAfterNtp() {
   // Check if keys exist before reading to avoid NVS "NOT_FOUND" error logs.
   localOtaVersion = prefs.isKey("ota-version") ? prefs.getString("ota-version") : "0.0.0";
   lastOtaCheck = prefs.isKey("last-check") ? prefs.getLong("last-check") : 0;
+
+  // Initialize local version if default (first boot)
+  if (localOtaVersion == "0.0.0") {
+    localOtaVersion = FIRMWARE_VERSION;
+    prefs.putString("ota-version", localOtaVersion);
+    Serial.printf("OTA: Initialized local version to %s\n", localOtaVersion.c_str());
+  }
   prefs.end();
   
   Serial.printf("OTA: Local version: %s, Last check: %ld\n", localOtaVersion.c_str(), lastOtaCheck);

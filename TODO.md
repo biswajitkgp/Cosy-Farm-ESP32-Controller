@@ -1,20 +1,11 @@
-# OTA Update Implementation - Complete ✅
+# ESP32 Controller Project - Task Progress
 
-Status: Complete
+## Approved Plan: Fix Local Version Mismatch (0.0.0 -> 1.0.0)
+- [x] Create TODO.md with steps
+- [ ] Step 1: Edit src/define.h to add #define FIRMWARE_VERSION "1.0.0"
+- [ ] Step 2: Edit src/OTA_Manager.cpp to initialize localOtaVersion from FIRMWARE_VERSION if "0.0.0" or empty
+- [ ] Step 3: Commit and push changes
+- [ ] Step 4: Build new firmware.bin (pio run)
+- [ ] Step 5: Flash to device and verify serial print shows 1.0.0
+- [ ] Step 6: Mark complete
 
-## Implemented
-- OTA_Manager.*: Version check post-NTP (daily), chunked firmware download task.
-- define.h: States, URLs (update placeholders), globals.
-- WiFi_Manager.cpp: otaCheckAfterNtp() call.
-- main.cpp: Globals def.
-- LED_Manager.cpp: Standardized blink patterns (bright/dim consistent, cyan OTA check, yellow OTA update).
-
-## Final Steps for User
-1. Update OTA URLs in src/define.h with your GitHub repo/raw links.
-2. Build firmware: `pio run` → copy .pio/build/esp32-s3-devkitc-1/firmware.bin + create version.txt (e.g. "1.0.1") to repo/main.
-3. Upload: `pio run --target upload --upload-port COMX` (check Device Manager for port).
-4. Test: Serial monitor - WiFi/NTP → OTA check (cyan LED slow), if new version yellow fast + update/restart.
-
-All RGB states standardized with consistent PWM logic, no libs needed (native ledc optimal for R/G/B pins).
-
-Project ready!

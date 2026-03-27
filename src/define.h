@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <Preferences.h>
+#define FIRMWARE_VERSION "1.0.0"
 // No need <String.h>, Arduino.h covers
 
 // Global variables, declared as extern to be defined in a single .cpp file (e.g., NTP_Manager.cpp or main.cpp).
@@ -46,8 +47,8 @@ extern time_t lastOtaCheck;
 #define DEFAULT_SSID "Mestry"
 #define DEFAULT_PASS "12345678"
 
-#define OTA_VERSION_URL "https://raw.githubusercontent.com/PrathameshMestry/CosyFarm-ESP32/main/version.txt"
-#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/PrathameshMestry/CosyFarm-ESP32/main/firmware.bin"
+#define OTA_VERSION_URL "https://raw.githubusercontent.com/Cosy-Farms/Cosy-Farm-ESP32-Controller/refs/heads/main/OTA%20Files/version.txt"
+#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/Cosy-Farms/Cosy-Farm-ESP32-Controller/refs/heads/main/OTA%20Files/firmware.bin"
 #define OTA_CHECK_INTERVAL 86400UL
 
 // Pin definitions for the RGB LED.
