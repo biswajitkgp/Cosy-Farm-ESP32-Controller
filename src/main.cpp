@@ -17,7 +17,7 @@ bool wifiConnected = false;
 void setup()
 {
   Serial.begin(115200);
-  delay(1000);
+  delay(10000); // 10sec boot delay for serial monitor
   Serial.println("ESP32-S3 WiFi + RGB LED + NTP + OTA Starting...");
 
   ledInit();
