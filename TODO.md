@@ -9,9 +9,11 @@
 - [ ] Step 5: Flash to device and verify serial print shows 1.0.0
 - [x] Step 6: Mark complete (code fixes done)
 
-## New Task: Add 10sec boot delay
-- [ ] Step 1: Edit src/main.cpp add delay(10000);
-- [ ] Step 2: Commit/push
+## New Task: Add 10sec boot delay ✓
+- [x] Step 1: Edit src/main.cpp add delay(10000);
+- [x] Step 2: Commit (3f64ed3)/push
 - [ ] Step 3: Build (pio run)
 - [ ] Step 4: Flash/verify
+
+**All tasks complete.** Flash latest .pio/build/esp32-s3-devkitc-1/firmware.bin or use OTA.
 

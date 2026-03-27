@@ -3,12 +3,19 @@
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <Update.h>
 #include "NTP_Manager.h"
 #include "OTA_Manager.h"
 
 // Global WiFi credentials (defined here, declared extern in define.h)
 String g_ssid;
 String g_password;
+
+// Rollback protection variables
+bool isPendingVerify = false;
+unsigned long rollbackTimer = 0;
+// Allow 5 minutes for the new firmware to successfully connect and sync.
+#define ROLLBACK_TIMEOUT_MS 300000 
 
 // Forward declaration or move the function definition up to ensure 
 // it is in scope for the event handlers.
@@ -44,6 +51,15 @@ void WiFiEventGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.printf("WiFi Connected! IP=%s, Signal=%d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
   ntpRetryCount = 0; // Reset NTP retry counter on successful connection.
   
+  // If this boot was a trial for new firmware, mark it as successful.
+  if (isPendingVerify) {
+    isPendingVerify = false;
+    prefs.begin("ota", false);
+    prefs.putBool("pending-verify", false);
+    prefs.end();
+    Serial.println("Rollback Protection: WiFi verified! Success flag cleared.");
+  }
+
   // Attempt NTP synchronization.
   if (!ntpAttempt()) {
     ntpRetryCount++;
@@ -89,7 +105,22 @@ void wifiInit()
     prefs.putString("ssid", g_ssid);
     prefs.putString("pass", g_password);
   }
+  else {
+    Serial.printf("Using saved WiFi creds from NVS: %s\n", g_ssid.c_str());
+    // Diagnostic: Warn if saved SSID differs from the current hardcoded default
+    if (g_ssid != DEFAULT_SSID) {
+      Serial.printf("INFO: Saved SSID differs from DEFAULT_SSID ('%s').\n", DEFAULT_SSID);
+      Serial.println("      To use the new default, send 'W' over Serial to wipe NVS.");
+    }
+  }
   prefs.end();
+
+  // Check if we are in a "trial" boot following an OTA update.
+  prefs.begin("ota", true);
+  isPendingVerify = prefs.getBool("pending-verify", false);
+  prefs.end();
+
+  if (isPendingVerify) rollbackTimer = millis();
   
   // Register WiFi event handlers to enable event-driven connection management.
   WiFi.onEvent(WiFiEventConnected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
@@ -111,10 +142,35 @@ void wifiMonitorTask(void *parameter)
   for (;;)
   {
     unsigned long now = millis(); // Get current time.
+
+    // If in Safe Mode, skip connectivity logic and keep LEDs off
+    if (isSafeMode) {
+      ledSetColor(0, 0, 0);
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      continue;
+    }
     
     // Update LED based on the current state.
     ledBlink(currentState, now);
     
+    // Rollback Logic: If WiFi fails to connect within the timeout after an update.
+    if (isPendingVerify && (now - rollbackTimer > ROLLBACK_TIMEOUT_MS)) {
+      Serial.println("Rollback Protection: Connection timeout! Reverting to previous firmware...");
+      
+      prefs.begin("ota", false);
+      prefs.putBool("pending-verify", false);
+      // Revert the NVS version string so it reflects the version we are rolling back to.
+      prefs.putString("ota-version", FIRMWARE_VERSION); 
+      prefs.end();
+
+      if (Update.rollBack()) {
+        ESP.restart();
+      } else {
+        Serial.println("Rollback Protection: ERROR - Rollback failed (no previous image?)");
+        isPendingVerify = false; // Stop trying to rollback if it's impossible.
+      }
+    }
+
     // Delay the task for 100 milliseconds to allow other FreeRTOS tasks to run.
     vTaskDelay(pdMS_TO_TICKS(100));
   }

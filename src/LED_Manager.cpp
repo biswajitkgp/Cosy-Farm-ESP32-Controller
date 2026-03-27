@@ -37,6 +37,9 @@ void ledSetColor(uint8_t r, uint8_t g, uint8_t b) {
 // state: The current operational state of the device (from define.h).
 // now: The current time in milliseconds (from millis()).
 void ledBlink(int state, unsigned long now) {
+  // Respect Safe Mode: Keep LEDs off
+  if (isSafeMode) return;
+
   switch(state) {
     case STATE_NTP_SYNC:
       if (now - lastBlink > 150) {

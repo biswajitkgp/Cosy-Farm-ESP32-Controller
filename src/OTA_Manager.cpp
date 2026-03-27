@@ -8,6 +8,7 @@ String localOtaVersion = "";
 time_t lastOtaCheck = 0;
 bool otaInProgress = false;
 TaskHandle_t otaTaskHandle = NULL;
+String targetOtaMd5 = ""; // Stores the MD5 hash of the pending update
 
 bool isOtaInProgress() {
   return otaInProgress;
@@ -48,14 +49,23 @@ void otaCheckAfterNtp() {
     int code = http.GET();
     
     if (code == HTTP_CODE_OK) {
-      WiFiClient * versionStream = http.getStreamPtr();
-      String remoteVersion = "";
-      while (versionStream->available()) {
-        remoteVersion += (char)versionStream->read();
-      }
+      String payload = http.getString();
       http.end();
-      remoteVersion.trim();
+      payload.trim();
+
+      // Expecting format "version:md5" or just "version"
+      String remoteVersion = payload;
+      targetOtaMd5 = ""; 
+      
+      int separatorIndex = payload.indexOf(':');
+      if (separatorIndex != -1) {
+        remoteVersion = payload.substring(0, separatorIndex);
+        targetOtaMd5 = payload.substring(separatorIndex + 1);
+        targetOtaMd5.trim();
+      }
+
       Serial.printf("OTA: Remote version: %s\n", remoteVersion.c_str());
+      if (targetOtaMd5.length() > 0) Serial.printf("OTA: Expected MD5: %s\n", targetOtaMd5.c_str());
       
       if (remoteVersion.length() > 0 && remoteVersion != localOtaVersion) {
         // Simple string compare; assume semantic versioning
@@ -118,9 +128,16 @@ void otaUpdateTask(void *parameter) {
   // Get the stream to read the firmware data.
   WiFiClient *stream = http.getStreamPtr();
   
+  // VALIDITY CHECK 1: Set expected MD5 if available. 
+  // If the calculated MD5 doesn't match this at the end, Update.end() will return false.
+  if (targetOtaMd5.length() > 0) {
+    Update.setMD5(targetOtaMd5.c_str());
+  }
+
   // Begin the OTA update process.
-  // UPDATE_SIZE_UNKNOWN is used if the content length is not reliable or known beforehand.
-  if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+  // VALIDITY CHECK 2: Using actual contentLength instead of unknown size.
+  size_t updateSize = (contentLength > 0) ? contentLength : UPDATE_SIZE_UNKNOWN;
+  if (!Update.begin(updateSize)) {
     Serial.println("OTA: Update begin failed");
     http.end();
     // Reset OTA flag and delete the task.
@@ -147,8 +164,20 @@ void otaUpdateTask(void *parameter) {
   
   http.end(); // Close HTTP connection.
   
-  // Finalize the update. 'true' indicates a successful update.
-  if (Update.end(true)) {
+  // VALIDITY CHECK 3: Finalize update and verify integrity.
+  // Update.end() checks if written bytes match begin() size AND validates the MD5.
+  // The 'true' parameter for evenIfRemaining is only needed if size was unknown.
+  bool success = (contentLength > 0) ? Update.end() : Update.end(true);
+
+  if (success) {
+    // Double check that we actually wrote the number of bytes the server promised
+    if (contentLength > 0 && written != (uint32_t)contentLength) {
+      Serial.printf("OTA: Size mismatch! Expected %d, got %u\n", contentLength, written);
+      otaInProgress = false;
+      currentState = STATE_ERROR;
+      vTaskDelete(NULL);
+      return;
+    }
     Serial.printf("OTA: Success! Written %u bytes, restarting...\n", written);
     // If successful, restart the ESP32 to boot into the new firmware.
   } else {
@@ -163,5 +192,11 @@ void otaUpdateTask(void *parameter) {
   
   // If update was successful and device is about to restart, set otaInProgress to false.
   otaInProgress = false;
+
+  // Set the verification flag so the next boot knows it needs to verify WiFi connection.
+  prefs.begin("ota", false);
+  prefs.putBool("pending-verify", true);
+  prefs.end();
+
   ESP.restart();
 }

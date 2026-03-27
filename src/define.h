@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <Preferences.h>
-#define FIRMWARE_VERSION "1.0.0"
 // No need <String.h>, Arduino.h covers
 
 // Global variables, declared as extern to be defined in a single .cpp file (e.g., NTP_Manager.cpp or main.cpp).
@@ -36,6 +35,8 @@ extern int currentState;
 extern Preferences prefs;
 // Flag indicating if WiFi is currently connected.
 extern bool wifiConnected;
+// Global flag for Safe Mode status
+extern bool isSafeMode;
 // Counter for NTP synchronization retries.
 extern int ntpRetryCount;
 // Local firmware version string.
@@ -44,12 +45,16 @@ extern String localOtaVersion;
 extern time_t lastOtaCheck;
 
 // Default WiFi credentials, used if no saved credentials are found.
-#define DEFAULT_SSID "Mestry"
+#define DEFAULT_SSID "COSYFARM"
 #define DEFAULT_PASS "12345678"
 
-#define OTA_VERSION_URL "https://raw.githubusercontent.com/Cosy-Farms/Cosy-Farm-ESP32-Controller/refs/heads/main/OTA%20Files/version.txt"
-#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/Cosy-Farms/Cosy-Farm-ESP32-Controller/refs/heads/main/OTA%20Files/firmware.bin"
-#define OTA_CHECK_INTERVAL 86400UL
+// The current version of the firmware. This is used to compare against the remote version
+// to decide if an update is required.
+#define FIRMWARE_VERSION "1.0.0"
+
+#define OTA_VERSION_URL "https://raw.githubusercontent.com/PrathameshMestry/CosyFarm-ESP32/main/version.txt"
+#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/PrathameshMestry/CosyFarm-ESP32/main/firmware.bin"
+#define OTA_CHECK_INTERVAL 86400UL // How often to check for updates (in seconds, e.g., 24 hours)
 
 // Pin definitions for the RGB LED.
 #define PIN_R 2
@@ -59,11 +64,18 @@ extern time_t lastOtaCheck;
 // PWM (Pulse Width Modulation) settings for the RGB LED.
 #define PWM_FREQ 1000
 #define PWM_RES 8
-#define PWM_CH_R 0
-#define PWM_CH_G 1
-#define PWM_CH_B 2
+#define PWM_CH_R 0 // PWM channel for Red LED
+#define PWM_CH_G 1 // PWM channel for Green LED
+#define PWM_CH_B 2 // PWM channel for Blue LED
 
 // NTP (Network Time Protocol) settings.
 #define NTP_TIMEOUT_MS 3000
+
+// Voltage Monitoring
+#define PIN_VOLTAGE_SENSE 4      // Use a GPIO with ADC capability (e.g., GPIO 4)
+#define VOLTAGE_DIVIDER_RATIO 2.0 // Adjust based on your resistor divider (e.g., 10k/10k = 2)
+#define VOLTAGE_MIN_SAFE_MV 3100  // Minimum millivolts required to safely write to Flash
+#define VOLTAGE_CRITICAL_MV 3000  // Threshold to enter Safe Mode
+#define VOLTAGE_RECOVERY_MV 3250  // Threshold to exit Safe Mode (Hysteresis)
 
 #endif

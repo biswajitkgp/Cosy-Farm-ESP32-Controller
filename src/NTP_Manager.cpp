@@ -3,6 +3,7 @@
 #include <HTTPClient.h>
 #include <time.h>
 #include <ArduinoJson.h>
+#include "RTC_Manager.h"
 
 // These definitions allocate memory for the globals. 
 // They are declared as 'extern' in define.h and defined here.
@@ -85,14 +86,12 @@ void ntpUpdateOnConnect() {
   int code = http.GET();
   
   if (code == HTTP_CODE_OK) {
-    String payload = http.getString();
-    Serial.printf("Geo payload: %s\n", payload.c_str());
-    http.end();
-    // Parse the JSON response from the geo-location API.
-    // Allocate the JSON document
-    // For this small response, 512 bytes is plenty.
     JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, payload);
+    
+    // Parse directly from the response stream to save memory
+    WiFiClient* stream = http.getStreamPtr();
+    DeserializationError error = deserializeJson(doc, *stream);
+    http.end();
 
     if (error) {
       Serial.print(F("deserializeJson() failed: "));
@@ -153,7 +152,10 @@ void ntpUpdateOnConnect() {
     strftime(lbuf, sizeof(lbuf), "%Y-%m-%d %H:%M:%S Local", &timeinfo);
     g_localTime = lbuf;
     
-    Serial.printf("Success! LAT=%s LON=%s UTC=%s Local=%s TZ=\"%s\"\n", g_lat.c_str(), g_lon.c_str(), g_utcTime.c_str(), g_localTime.c_str(), g_timezone.c_str());
+    Serial.printf("Success!\nLAT=%s LON=%s \nUTC=%s \nLocal=%s \nTZ=\"%s\"\n", g_lat.c_str(), g_lon.c_str(), g_utcTime.c_str(), g_localTime.c_str(), g_timezone.c_str());
+    
+    // Notify RTC Manager that sync is complete
+    rtcSyncWithNTP();
   } else {
     Serial.printf("API fail %d\n", code);
     http.end();
