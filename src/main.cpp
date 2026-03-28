@@ -227,10 +227,11 @@ Serial.println("ESP32-S3 WiFi + RGB LED + NTP + OTA Starting...");
   xTaskCreate(
       thermalTask,
       "ThermalSensor",
-      8192,
+      16384,
       NULL,
       1,
       NULL);
+
 
 
   Serial.println("Setup complete - monitor LED/WiFi/OTA/Thermal");

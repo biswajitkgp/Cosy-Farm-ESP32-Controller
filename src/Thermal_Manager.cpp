@@ -77,11 +77,10 @@ void thermalTask(void *parameter) {
     if (dhtEnabled) {
       thermalUpdate();
     } else {
-      // If disabled, just wait without reading to save CPU
-      // We don't delete the task anymore so it can be resumed by the Reset command
       vTaskDelay(pdMS_TO_TICKS(5000)); 
-      continue;
     }
+    yield();
     vTaskDelay(pdMS_TO_TICKS(2000)); // 0.5Hz - DHT22 requirement
   }
 }
+
