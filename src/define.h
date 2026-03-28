@@ -42,9 +42,12 @@ extern int ntpRetryCount;
 // Local firmware version string.
 extern String localOtaVersion;
 // Timestamp of the last OTA check.
+
 extern time_t lastOtaCheck;
+extern String g_deviceId;
 
 // Default WiFi credentials, used if no saved credentials are found.
+
 #define DEFAULT_SSID "COSYFARM"
 #define DEFAULT_PASS "12345678"
 

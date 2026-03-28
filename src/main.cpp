@@ -11,6 +11,7 @@
 #include <Preferences.h>
 #include <LittleFS.h>
 #include <esp_system.h>
+#include <esp_efuse.h>
 
 // Global definitions (define.h extern impl)
 Preferences prefs;
@@ -18,6 +19,7 @@ int currentState = 0;
 int ntpRetryCount = 0;
 bool wifiConnected = false;
 bool isSafeMode = false;
+String g_deviceId = "";
 
 #define LOG_FILE_PATH "/system_log.txt"
 #define MAX_LOG_SIZE (128 * 1024) // 128KB limit for the log file
@@ -157,7 +159,19 @@ void setup()
 {
   Serial.begin(115200);
   delay(10000); // 10sec boot delay for serial monitor
-  Serial.println("ESP32-S3 WiFi + RGB LED + NTP + OTA Starting...");
+Serial.println("ESP32-S3 WiFi + RGB LED + NTP + OTA Starting...");
+  // Generate unique device ID from eFuse MAC
+  uint8_t mac[6];
+  esp_efuse_mac_get_default(mac);
+  char mac_num[13];
+  sprintf(mac_num, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  String mac_str(mac_num);
+  g_deviceId = "COSYFARM-" + mac_str;
+  Serial.printf("Device ID: %s (MAC lower 16bit: %llX)\n", g_deviceId.c_str(), mac);
+  prefs.begin("device", false);
+  prefs.putString("device-id", g_deviceId);
+  prefs.end();
+
 
   rtcInit(); // Initialize RTC and load Geo-Cache
 
