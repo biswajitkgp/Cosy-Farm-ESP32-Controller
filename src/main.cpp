@@ -88,8 +88,8 @@ void systemInfoTask(void *parameter)
 
   for (;;)
   {
-    // Process safety checks (Voltage monitoring & Safe Mode)
     rtcUpdate();
+
 
     // Use a larger buffer and safer string construction to prevent stack/global corruption
     String report = "";
@@ -100,7 +100,8 @@ void systemInfoTask(void *parameter)
     int days = totalSeconds / 86400;
     int hours = (totalSeconds % 86400) / 3600;
     int mins = (totalSeconds % 3600) / 60;
-    uint32_t vcc = getSystemVoltage();
+    uint32_t vcc = 3300; // Fixed 3.3V sim
+
 
     report += "\n--- System Status Report ---\n";
     char line[128];
